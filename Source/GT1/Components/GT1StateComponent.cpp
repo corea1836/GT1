@@ -20,6 +20,7 @@ void UGT1StateComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UGT1StateComponent::MovementInputEnableAction()
 {
 	bMovementInputEnabled = true;
+	ClearState();
 }
 
 void UGT1StateComponent::ToggleMovementInput(bool bEnabled, float Duration)
@@ -38,6 +39,11 @@ void UGT1StateComponent::ToggleMovementInput(bool bEnabled, float Duration)
 	{
 		bMovementInputEnabled = false;
 	}
+}
+
+void UGT1StateComponent::ClearState()
+{
+	CurrentState = FGameplayTag::EmptyTag;
 }
 
 bool UGT1StateComponent::IsCurrentStateEqualToAny(const FGameplayTagContainer& TagsToCheck) const

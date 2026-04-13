@@ -1,5 +1,7 @@
 #include "Animations/GT1AnimInstance.h"
 
+#include "Characters/GT1Character.h"
+#include "Components/GT1StateComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -38,4 +40,12 @@ void UGT1AnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	
 	GEngine->AddOnScreenDebugMessage(3, 1.5f, FColor::Red, FString::Printf(TEXT("Landing Speed : %f"), LandingSpeed));
 	
+}
+
+void UGT1AnimInstance::AnimNotify_ResetMovementInput()
+{
+	if (AGT1Character* LocalCharacter = Cast<AGT1Character>(GetOwningActor()))
+	{
+		LocalCharacter->GetStateComponent()->ToggleMovementInput(true);
+	}
 }

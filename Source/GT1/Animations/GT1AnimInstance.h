@@ -44,4 +44,9 @@ public:
 	virtual void NativeInitializeAnimation() override;
 	// 매 틱마다 호출
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	
+public:
+	// Anim Notify 처리
+	UFUNCTION()
+	void AnimNotify_ResetMovementInput();
 };

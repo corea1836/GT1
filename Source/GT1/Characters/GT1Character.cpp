@@ -3,8 +3,10 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "EnhancedInputComponent.h"
+#include "GT1GameplayTags.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/GT1AttributeComponent.h"
+#include "Components/GT1StateComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "UI/GT1PlayerHUDWidget.h"
 
@@ -39,6 +41,7 @@ AGT1Character::AGT1Character()
 	FollowCamera->bUsePawnControlRotation = false;
 	
 	AttributeComponent = CreateDefaultSubobject<UGT1AttributeComponent>(TEXT("AttributeComponent"));
+	StateComponent = CreateDefaultSubobject<UGT1StateComponent>(TEXT("StateComponent"));
 	
 	/**
 	 * TODO
@@ -105,6 +108,8 @@ void AGT1Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &ThisClass::Sprinting);
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ThisClass::StopSprinting);
+		
+		EnhancedInputComponent->BindAction(RollingAction, ETriggerEvent::Started, this, &ThisClass::Rolling);
 	}
 }
 
@@ -118,8 +123,31 @@ bool AGT1Character::IsMoving() const
 	return false;
 }
 
+void AGT1Character::Jump()
+{
+	Super::Jump();
+	
+	check(StateComponent);
+	StateComponent->ToggleMovementInput(false);
+}
+
+void AGT1Character::Landed(const FHitResult& Hit)
+{
+	Super::Landed(Hit);
+	
+	check(StateComponent);
+	StateComponent->ToggleMovementInput(true);
+}
+
 void AGT1Character::Move(const FInputActionValue& Values)
 {
+	check(StateComponent);
+	
+	if (StateComponent->MovementInputEnabled() == false)
+	{
+		return;
+	}
+	
 	FVector2D MovementVector = Values.Get<FVector2D>();
 	
 	if (Controller != nullptr)
@@ -166,5 +194,26 @@ void AGT1Character::StopSprinting()
 {
 	GetCharacterMovement()->MaxWalkSpeed = NormalSpeed;
 	AttributeComponent->ToggleStaminaRegeneration(true);
+}
+
+void AGT1Character::Rolling()
+{
+	check(AttributeComponent);
+	check(StateComponent);
+	
+	if (AttributeComponent->CheckHasEnoughStamina(15.f))
+	{
+		AttributeComponent->ToggleStaminaRegeneration(false);
+		
+		StateComponent->ToggleMovementInput(false);
+		
+		AttributeComponent->DecreaseStamina(15.f);
+		
+		PlayAnimMontage(RollingMontage);
+		
+		StateComponent->SetState(GT1GameplayTags::Character_State_Rolling);
+		
+		AttributeComponent->ToggleStaminaRegeneration(true, 1.5f);
+	}
 }
 

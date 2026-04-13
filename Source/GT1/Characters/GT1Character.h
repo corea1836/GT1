@@ -31,10 +31,16 @@ private:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
 	TObjectPtr<UInputAction> SprintAction;
-
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
+	TObjectPtr<UInputAction> RollingAction;
+	
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess=true))
 	TObjectPtr<class UGT1AttributeComponent> AttributeComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess=true))
+	TObjectPtr<class UGT1StateComponent> StateComponent;
 	
 protected:
 	UPROPERTY(EditAnywhere, Category="UI")
@@ -53,6 +59,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Sprinting")
 	float NormalSpeed = 500.f;
 	
+protected:
+	UPROPERTY(EditAnywhere, Category="Montage")
+	TObjectPtr<UAnimMontage> RollingMontage;
+	
 public:
 	AGT1Character();
 
@@ -65,9 +75,15 @@ public:
 	virtual void NotifyControllerChanged() override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+	
+public:
+	FORCEINLINE UGT1StateComponent* GetStateComponent() const { return StateComponent; }
 
 protected:
 	bool IsMoving() const;
+	
+	virtual void Jump() override;
+	virtual void Landed(const FHitResult&  Hit) override;
 	
 	void Move(const FInputActionValue& Values);
 	void Look(const FInputActionValue& Values);
@@ -75,4 +91,6 @@ protected:
 	void Sprinting();
 	
 	void StopSprinting();
+	
+	void Rolling();
 };

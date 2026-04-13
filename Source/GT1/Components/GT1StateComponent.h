@@ -42,6 +42,8 @@ public:
 	FORCEINLINE void SetState(const FGameplayTag NewState) { CurrentState = NewState; }
 	FORCEINLINE FGameplayTag GetCurrentState() const { return CurrentState; }
 	
-	bool IsCurrentStateEqualToAny(const FGameplayTagContainer& TagsToCheck) const;
+	// 현재 상태 초기화
+	void ClearState();
 	
+	bool IsCurrentStateEqualToAny(const FGameplayTagContainer& TagsToCheck) const;
 };
