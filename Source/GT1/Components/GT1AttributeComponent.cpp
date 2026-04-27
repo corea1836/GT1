@@ -1,5 +1,8 @@
 #include "Components/GT1AttributeComponent.h"
 
+#include "GT1GameplayTags.h"
+#include "GT1StateComponent.h"
+
 UGT1AttributeComponent::UGT1AttributeComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -57,6 +60,26 @@ void UGT1AttributeComponent::BroadcastAttributeOnChanged(EGT1AttributeType InAtt
 		}
 		
 		OnAttributeChanged.Broadcast(InAttributeType, Ratio);
+	}
+}
+
+void UGT1AttributeComponent::TakeDamageAmount(float DamageAmount)
+{
+	BaseHealth = FMath::Clamp(BaseHealth - DamageAmount, 0.f, MaxHealth);
+	
+	BroadcastAttributeOnChanged(EGT1AttributeType::Health);
+	
+	if (BaseHealth <= 0.f)
+	{
+		if (OnDeath.IsBound())
+		{
+			OnDeath.Broadcast();
+		}
+		
+		if (UGT1StateComponent* StateComponent = GetOwner()->FindComponentByClass<UGT1StateComponent>())
+		{
+			StateComponent->SetState(GT1GameplayTags::Character_State_Death);
+		}
 	}
 }
 

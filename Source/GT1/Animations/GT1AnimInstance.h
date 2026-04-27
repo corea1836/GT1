@@ -12,10 +12,13 @@ class GT1_API UGT1AnimInstance : public UAnimInstance
 // 캐싱할 컴포넌트
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Reference")
-	TObjectPtr<ACharacter> Character;
+	TObjectPtr<class AGT1Character> Character;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Reference")
 	TObjectPtr<class UCharacterMovementComponent> MovementComponent;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Reference")
+	TObjectPtr<class UGT1CombatComponent> CombatComponent;
 	
 // 매 틱마다 업데이트할 상태	
 protected:
@@ -37,6 +40,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movement Data")
 	float LandingSpeed;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Combat Data")
+	bool bCombatEnabled;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Combat Data")
+	bool bSprinting;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Combat Data")
+	float StopEntrySpeed;
+	
+	UPROPERTY()
+	float SprintReleaseTimer = 0.f;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bWasSprintingWhenMoving = false;
+	
 public:
 	UGT1AnimInstance();
 	
@@ -49,4 +67,7 @@ public:
 	// Anim Notify 처리
 	UFUNCTION()
 	void AnimNotify_ResetMovementInput();
+	
+	UFUNCTION()
+	void AnimNotify_ResetState();
 };

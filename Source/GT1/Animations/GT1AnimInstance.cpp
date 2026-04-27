@@ -1,6 +1,7 @@
 #include "Animations/GT1AnimInstance.h"
 
 #include "Characters/GT1Character.h"
+#include "Components/GT1CombatComponent.h"
 #include "Components/GT1StateComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -13,11 +14,12 @@ void UGT1AnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
 	
-	Character = Cast<ACharacter>(GetOwningActor());
+	Character = Cast<AGT1Character>(GetOwningActor());
 	
 	if (Character)
 	{
 		MovementComponent = Character->GetCharacterMovement();
+		CombatComponent = Character->GetComponentByClass<UGT1CombatComponent>();
 	}
 }
 
@@ -38,7 +40,24 @@ void UGT1AnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	
 	if (bIsFalling) LandingSpeed = Velocity.Z;
 	
-	GEngine->AddOnScreenDebugMessage(3, 1.5f, FColor::Red, FString::Printf(TEXT("Landing Speed : %f"), LandingSpeed));
+	bCombatEnabled = CombatComponent->IsCombatEnabled();
+	bSprinting = Character->IsSprinting();
+	
+	if (bShouldMove)
+		StopEntrySpeed = GroundSpeed;
+	
+	if (bShouldMove)
+	{
+		if (bSprinting)
+			SprintReleaseTimer = 0.15f;
+		else
+			SprintReleaseTimer -= DeltaSeconds;
+
+		bWasSprintingWhenMoving = (SprintReleaseTimer > 0.f);
+	}
+	
+	GEngine->AddOnScreenDebugMessage(3, 1.5f, FColor::Red, FString::Printf(TEXT("Ground Speed : %f"), GroundSpeed));
+	GEngine->AddOnScreenDebugMessage(3, 1.5f, FColor::Cyan, FString::Printf(TEXT("StopEntrySpeed : %f"), StopEntrySpeed));
 	
 }
 
@@ -47,5 +66,13 @@ void UGT1AnimInstance::AnimNotify_ResetMovementInput()
 	if (AGT1Character* LocalCharacter = Cast<AGT1Character>(GetOwningActor()))
 	{
 		LocalCharacter->GetStateComponent()->ToggleMovementInput(true);
+	}
+}
+
+void UGT1AnimInstance::AnimNotify_ResetState()
+{
+	if (AGT1Character* LocalCharacter = Cast<AGT1Character>(GetOwningActor()))
+	{
+		LocalCharacter->GetStateComponent()->ClearState();
 	}
 }
