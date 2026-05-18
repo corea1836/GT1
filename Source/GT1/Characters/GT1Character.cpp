@@ -7,6 +7,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Components/GT1AttributeComponent.h"
 #include "Components/GT1CombatComponent.h"
+#include "Components/GT1SoftTargetingComponent.h"
 #include "Components/GT1StateComponent.h"
 #include "Components/GT1TargetingComponent.h"
 #include "Equipments/GT1Weapon.h"
@@ -48,7 +49,7 @@ AGT1Character::AGT1Character()
 	AttributeComponent = CreateDefaultSubobject<UGT1AttributeComponent>(TEXT("AttributeComponent"));
 	StateComponent = CreateDefaultSubobject<UGT1StateComponent>(TEXT("StateComponent"));
 	CombatComponent = CreateDefaultSubobject<UGT1CombatComponent>(TEXT("CombatComponent"));
-	TargetingComponent = CreateDefaultSubobject<UGT1TargetingComponent>(TEXT("TargetingComponent"));
+	TargetingComponent = CreateDefaultSubobject<UGT1SoftTargetingComponent>(TEXT("TargetingComponent"));
 	
 	/**
 	 * TODO
@@ -126,9 +127,9 @@ void AGT1Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ThisClass::Attack);
 		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &ThisClass::HeavyAttack);
 		
-		EnhancedInputComponent->BindAction(LockOnTargetAction, ETriggerEvent::Started, this, &ThisClass::LockOnTarget);
-		EnhancedInputComponent->BindAction(LeftTargetAction, ETriggerEvent::Started, this, &ThisClass::LeftTarget);
-		EnhancedInputComponent->BindAction(RightTargetAction, ETriggerEvent::Started, this, &ThisClass::RightTarget);
+		// EnhancedInputComponent->BindAction(LockOnTargetAction, ETriggerEvent::Started, this, &ThisClass::LockOnTarget);
+		// EnhancedInputComponent->BindAction(LeftTargetAction, ETriggerEvent::Started, this, &ThisClass::LeftTarget);
+		// EnhancedInputComponent->BindAction(RightTargetAction, ETriggerEvent::Started, this, &ThisClass::RightTarget);
 	}
 }
 
@@ -147,6 +148,7 @@ void AGT1Character::Jump()
 	Super::Jump();
 	
 	check(StateComponent);
+	StateComponent->SetState(GT1GameplayTags::Character_State_Jumping);
 	StateComponent->ToggleMovementInput(false);
 }
 
@@ -184,11 +186,6 @@ void AGT1Character::Move(const FInputActionValue& Values)
 
 void AGT1Character::Look(const FInputActionValue& Values)
 {
-	if (TargetingComponent && TargetingComponent->IsLockOn())
-	{
-		return;
-	}
-	
 	FVector2D LookDirection = Values.Get<FVector2D>();
 	
 	if (Controller != nullptr)
@@ -202,6 +199,8 @@ void AGT1Character::Sprinting()
 {
 	if (AttributeComponent->CheckHasEnoughStamina(5.f) && IsMoving())
 	{
+		TargetingComponent->SetTarget(nullptr);
+		
 		AttributeComponent->ToggleStaminaRegeneration(false);
 		
 		GetCharacterMovement()->MaxWalkSpeed = SprintingSpeed;
@@ -223,13 +222,25 @@ void AGT1Character::StopSprinting()
 	bSprinting = false;
 }
 
+bool AGT1Character::CanRolling() const
+{
+	check(StateComponent);
+	
+	FGameplayTagContainer CheckTags;
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Rolling);
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Jumping);
+	
+	return StateComponent->IsCurrentStateEqualToAny(CheckTags) == false;
+}
+
 void AGT1Character::Rolling()
 {
 	check(AttributeComponent);
 	check(StateComponent);
 	
-	if (AttributeComponent->CheckHasEnoughStamina(15.f))
+	if (CanRolling() && AttributeComponent->CheckHasEnoughStamina(15.f))
 	{
+		TargetingComponent->SetTarget(nullptr);
 		AttributeComponent->ToggleStaminaRegeneration(false);
 		
 		StateComponent->ToggleMovementInput(false);
@@ -252,7 +263,9 @@ void AGT1Character::Interact()
 	constexpr float Radius = 100.f;
 	
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(COLLISION_OBJECT_INTERACTION));
+	ObjectTypes.Add(
+		
+	UEngineTypes::ConvertToObjectType(COLLISION_OBJECT_INTERACTION));
 	
 	TArray<AActor*> ActorsToIgnore;
 	
@@ -307,10 +320,12 @@ void AGT1Character::ToggleCombat()
 				
 				if (CombatComponent->IsCombatEnabled())
 				{
+					TargetingComponent->DeactiveTargeting();
 					PlayAnimMontage(Weapon->GetMontageForTag(GT1GameplayTags::Character_Action_Unequip));
 				}
 				else
 				{
+					TargetingComponent->ActiveTargeting();
 					PlayAnimMontage(Weapon->GetMontageForTag(GT1GameplayTags::Character_Action_Equip));
 				}
 			}
@@ -349,20 +364,20 @@ void AGT1Character::HeavyAttack()
 	}
 }
 
-void AGT1Character::LockOnTarget()
-{
-	TargetingComponent->ToggleLockOn();
-}
-
-void AGT1Character::LeftTarget()
-{
-	TargetingComponent->SwitchingLockOnActor(ESwitchingDirection::Left);
-}
-
-void AGT1Character::RightTarget()
-{
-	TargetingComponent->SwitchingLockOnActor(ESwitchingDirection::Right);
-}
+// void AGT1Character::LockOnTarget()
+// {
+// 	TargetingComponent->ToggleLockOn();
+// }
+//
+// void AGT1Character::LeftTarget()
+// {
+// 	TargetingComponent->SwitchingLockOnActor(ESwitchingDirection::Left);
+// }
+//
+// void AGT1Character::RightTarget()
+// {
+// 	TargetingComponent->SwitchingLockOnActor(ESwitchingDirection::Right);
+// }
 
 FGameplayTag AGT1Character::GetAttackPerform() const
 {
@@ -439,6 +454,8 @@ void AGT1Character::ExecuteComboAttack(const FGameplayTag& AttackTypeTag)
 			UE_LOG(LogTemp, Warning, TEXT(">>> ComboSequence Started <<<"));
 			ResetCombo();
 			bComboSequenceRunning = true;
+			
+			TargetingComponent->UpdateTargetByDirection(GetLastMovementInputVector());
 		}
 		
 		DoAttack(AttackTypeTag);
@@ -447,9 +464,6 @@ void AGT1Character::ExecuteComboAttack(const FGameplayTag& AttackTypeTag)
 	else if (bCanComboInput)
 	{
 		bSavedComboInput = true; 
-		
-		
-		
 	}
 }
 

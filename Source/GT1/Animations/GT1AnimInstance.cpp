@@ -1,5 +1,6 @@
 #include "Animations/GT1AnimInstance.h"
 
+#include "KismetAnimationLibrary.h"
 #include "Characters/GT1Character.h"
 #include "Components/GT1CombatComponent.h"
 #include "Components/GT1StateComponent.h"
@@ -55,6 +56,8 @@ void UGT1AnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 		bWasSprintingWhenMoving = (SprintReleaseTimer > 0.f);
 	}
+	
+	Direction = UKismetAnimationLibrary::CalculateDirection(Velocity, Character->GetActorRotation());
 	
 	GEngine->AddOnScreenDebugMessage(3, 1.5f, FColor::Red, FString::Printf(TEXT("Ground Speed : %f"), GroundSpeed));
 	GEngine->AddOnScreenDebugMessage(3, 1.5f, FColor::Cyan, FString::Printf(TEXT("StopEntrySpeed : %f"), StopEntrySpeed));

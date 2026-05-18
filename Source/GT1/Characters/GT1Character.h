@@ -48,14 +48,14 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
 	TObjectPtr<UInputAction> HeavyAttackAction;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
-	TObjectPtr<UInputAction> LockOnTargetAction;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
-	TObjectPtr<UInputAction> LeftTargetAction;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
-	TObjectPtr<UInputAction> RightTargetAction;
+	// UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
+	// TObjectPtr<UInputAction> LockOnTargetAction;
+	//
+	// UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
+	// TObjectPtr<UInputAction> LeftTargetAction;
+	//
+	// UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input, meta=(AllowPrivateAccess=true))
+	// TObjectPtr<UInputAction> RightTargetAction;
 	
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess=true))
@@ -67,8 +67,11 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess=true))
 	TObjectPtr<class UGT1CombatComponent> CombatComponent;
 	
+	// UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess=true))
+	// TObjectPtr<class UGT1TargetingComponent> TargetingComponent;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess=true))
-	TObjectPtr<class UGT1TargetingComponent> TargetingComponent;
+	TObjectPtr<class UGT1SoftTargetingComponent> TargetingComponent;
 	
 protected:
 	UPROPERTY(EditAnywhere, Category="UI")
@@ -136,6 +139,7 @@ protected:
 	
 	void StopSprinting();
 	
+	bool CanRolling() const;
 	void Rolling();
 	
 	void Interact();
@@ -146,10 +150,10 @@ protected:
 	void Attack();
 	void HeavyAttack();
 	
-	void LockOnTarget();
-	void LeftTarget();
-	void RightTarget();
-	
+	// void LockOnTarget();
+	// void LeftTarget();
+	// void RightTarget();
+	//
 protected:
 	FGameplayTag GetAttackPerform() const;
 	
