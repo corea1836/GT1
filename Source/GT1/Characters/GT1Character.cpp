@@ -6,8 +6,14 @@
 #include "GT1GameplayTags.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/GT1AttributeComponent.h"
+#include "Components/GT1CombatComponent.h"
+#include "Components/GT1SoftTargetingComponent.h"
 #include "Components/GT1StateComponent.h"
+#include "Components/GT1TargetingComponent.h"
+#include "Equipments/GT1Weapon.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Interfaces/GT1Interact.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "UI/GT1PlayerHUDWidget.h"
 
 AGT1Character::AGT1Character()
@@ -42,6 +48,8 @@ AGT1Character::AGT1Character()
 	
 	AttributeComponent = CreateDefaultSubobject<UGT1AttributeComponent>(TEXT("AttributeComponent"));
 	StateComponent = CreateDefaultSubobject<UGT1StateComponent>(TEXT("StateComponent"));
+	CombatComponent = CreateDefaultSubobject<UGT1CombatComponent>(TEXT("CombatComponent"));
+	TargetingComponent = CreateDefaultSubobject<UGT1SoftTargetingComponent>(TEXT("TargetingComponent"));
 	
 	/**
 	 * TODO
@@ -110,6 +118,18 @@ void AGT1Character::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &ThisClass::StopSprinting);
 		
 		EnhancedInputComponent->BindAction(RollingAction, ETriggerEvent::Started, this, &ThisClass::Rolling);
+		
+		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &ThisClass::Interact);
+		
+		EnhancedInputComponent->BindAction(ToggleCombatAction, ETriggerEvent::Started, this, &ThisClass::ToggleCombat);
+		
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ThisClass::AutoToggleCombat);
+		EnhancedInputComponent->BindAction(AttackAction, ETriggerEvent::Started, this, &ThisClass::Attack);
+		EnhancedInputComponent->BindAction(HeavyAttackAction, ETriggerEvent::Started, this, &ThisClass::HeavyAttack);
+		
+		// EnhancedInputComponent->BindAction(LockOnTargetAction, ETriggerEvent::Started, this, &ThisClass::LockOnTarget);
+		// EnhancedInputComponent->BindAction(LeftTargetAction, ETriggerEvent::Started, this, &ThisClass::LeftTarget);
+		// EnhancedInputComponent->BindAction(RightTargetAction, ETriggerEvent::Started, this, &ThisClass::RightTarget);
 	}
 }
 
@@ -128,6 +148,7 @@ void AGT1Character::Jump()
 	Super::Jump();
 	
 	check(StateComponent);
+	StateComponent->SetState(GT1GameplayTags::Character_State_Jumping);
 	StateComponent->ToggleMovementInput(false);
 }
 
@@ -178,11 +199,15 @@ void AGT1Character::Sprinting()
 {
 	if (AttributeComponent->CheckHasEnoughStamina(5.f) && IsMoving())
 	{
+		TargetingComponent->SetTarget(nullptr);
+		
 		AttributeComponent->ToggleStaminaRegeneration(false);
 		
 		GetCharacterMovement()->MaxWalkSpeed = SprintingSpeed;
-		
+				
 		AttributeComponent->DecreaseStamina(0.1f);
+		
+		bSprinting = true;
 	}
 	else
 	{
@@ -194,6 +219,18 @@ void AGT1Character::StopSprinting()
 {
 	GetCharacterMovement()->MaxWalkSpeed = NormalSpeed;
 	AttributeComponent->ToggleStaminaRegeneration(true);
+	bSprinting = false;
+}
+
+bool AGT1Character::CanRolling() const
+{
+	check(StateComponent);
+	
+	FGameplayTagContainer CheckTags;
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Rolling);
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Jumping);
+	
+	return StateComponent->IsCurrentStateEqualToAny(CheckTags) == false;
 }
 
 void AGT1Character::Rolling()
@@ -201,8 +238,9 @@ void AGT1Character::Rolling()
 	check(AttributeComponent);
 	check(StateComponent);
 	
-	if (AttributeComponent->CheckHasEnoughStamina(15.f))
+	if (CanRolling() && AttributeComponent->CheckHasEnoughStamina(15.f))
 	{
+		TargetingComponent->SetTarget(nullptr);
 		AttributeComponent->ToggleStaminaRegeneration(false);
 		
 		StateComponent->ToggleMovementInput(false);
@@ -215,5 +253,263 @@ void AGT1Character::Rolling()
 		
 		AttributeComponent->ToggleStaminaRegeneration(true, 1.5f);
 	}
+}
+
+void AGT1Character::Interact()
+{
+	FHitResult OutHit;
+	const FVector Start = GetActorLocation();
+	const FVector End = Start;
+	constexpr float Radius = 100.f;
+	
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(
+		
+	UEngineTypes::ConvertToObjectType(COLLISION_OBJECT_INTERACTION));
+	
+	TArray<AActor*> ActorsToIgnore;
+	
+	bool bHit = UKismetSystemLibrary::SphereTraceSingleForObjects(
+		this,
+		Start,
+		End,
+		Radius,
+		ObjectTypes,
+		false,
+		ActorsToIgnore,
+		EDrawDebugTrace::ForDuration,
+		OutHit,
+		true);
+	
+	if (bHit)
+	{
+		if (AActor* HitActor = OutHit.GetActor())
+		{
+			if (IGT1Interact* Interaction = Cast<IGT1Interact>(HitActor))
+			{
+				Interaction->Interact(this);	
+			}
+		}
+	}
+}
+
+bool AGT1Character::CanToggleCombat() const
+{
+	check(StateComponent);
+	
+	FGameplayTagContainer CheckTags;
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Attacking);
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Rolling);
+	CheckTags.AddTag(GT1GameplayTags::Character_State_GeneralAction);
+	
+	return StateComponent->IsCurrentStateEqualToAny(CheckTags) == false;
+}
+
+void AGT1Character::ToggleCombat()
+{
+	check(CombatComponent);
+	check(StateComponent);
+	
+	if (CombatComponent)
+	{
+		if (const AGT1Weapon* Weapon = CombatComponent->GetMainWeapon())
+		{
+			if (CanToggleCombat())
+			{
+				StateComponent->SetState(GT1GameplayTags::Character_State_GeneralAction);
+				
+				if (CombatComponent->IsCombatEnabled())
+				{
+					TargetingComponent->DeactiveTargeting();
+					PlayAnimMontage(Weapon->GetMontageForTag(GT1GameplayTags::Character_Action_Unequip));
+				}
+				else
+				{
+					TargetingComponent->ActiveTargeting();
+					PlayAnimMontage(Weapon->GetMontageForTag(GT1GameplayTags::Character_Action_Equip));
+				}
+			}
+		}
+	}
+}
+
+void AGT1Character::AutoToggleCombat()
+{
+	if (CombatComponent)
+	{
+		if (!CombatComponent->IsCombatEnabled())
+		{
+			ToggleCombat();
+		}
+	}
+}
+
+void AGT1Character::Attack()
+{
+	const FGameplayTag AttackTypeTag = GetAttackPerform();
+	
+	if (CanPerformAttack(AttackTypeTag))
+	{
+		ExecuteComboAttack(AttackTypeTag);
+	}
+}
+
+void AGT1Character::HeavyAttack()
+{
+	const FGameplayTag AttackTypeTag = GT1GameplayTags::Character_Attack_Heavy;
+	
+	if (CanPerformAttack(AttackTypeTag))
+	{
+		ExecuteComboAttack(AttackTypeTag);
+	}
+}
+
+// void AGT1Character::LockOnTarget()
+// {
+// 	TargetingComponent->ToggleLockOn();
+// }
+//
+// void AGT1Character::LeftTarget()
+// {
+// 	TargetingComponent->SwitchingLockOnActor(ESwitchingDirection::Left);
+// }
+//
+// void AGT1Character::RightTarget()
+// {
+// 	TargetingComponent->SwitchingLockOnActor(ESwitchingDirection::Right);
+// }
+
+FGameplayTag AGT1Character::GetAttackPerform() const
+{
+	// if (IsSprinting())
+	// {
+	// 	return GT1GameplayTags::Character_Attack_Running;
+	// }
+	return GT1GameplayTags::Character_Attack_Light;
+}
+
+bool AGT1Character::CanPerformAttack(const FGameplayTag& AttackTypeTag) const
+{
+	check(StateComponent);
+	check(CombatComponent);
+	check(AttributeComponent);
+	
+	if (IsValid(CombatComponent->GetMainWeapon()) == false)
+	{
+		return false;
+	}
+	
+	FGameplayTagContainer CheckTags;
+	CheckTags.AddTag(GT1GameplayTags::Character_State_Rolling);
+	CheckTags.AddTag(GT1GameplayTags::Character_State_GeneralAction);
+	
+	const float StaminaCost = CombatComponent->GetMainWeapon()->GetStaminaCost(AttackTypeTag);
+	
+	return StateComponent->IsCurrentStateEqualToAny(CheckTags) == false
+	&& CombatComponent->IsCombatEnabled()
+	&& AttributeComponent->CheckHasEnoughStamina(StaminaCost);
+}
+
+void AGT1Character::DoAttack(const FGameplayTag& AttackTypeTag)
+{
+	check(StateComponent);
+	check(AttributeComponent);
+	check(CombatComponent);
+	
+	if (const AGT1Weapon* Weapon = CombatComponent->GetMainWeapon())
+	{
+		StateComponent->SetState(GT1GameplayTags::Character_State_Attacking);
+		StateComponent->ToggleMovementInput(false);
+		CombatComponent->SetLastAttackType(AttackTypeTag);
+		
+		AttributeComponent->ToggleStaminaRegeneration(false);
+		
+		UAnimMontage* Montage = Weapon->GetMontageForTag(AttackTypeTag, ComboCounter);
+		if (!Montage)
+		{
+			ComboCounter = 0;
+			Montage = Weapon->GetMontageForTag(AttackTypeTag, ComboCounter);
+		}
+		
+		PlayAnimMontage(Montage);
+		
+		const float StaminaCost = Weapon->GetStaminaCost(AttackTypeTag);
+		AttributeComponent->DecreaseStamina(StaminaCost);
+		AttributeComponent->ToggleStaminaRegeneration(true, 1.5f);
+	}
+	
+}
+
+void AGT1Character::ExecuteComboAttack(const FGameplayTag& AttackTypeTag)
+{
+	if (StateComponent->GetCurrentState() != GT1GameplayTags::Character_State_Attacking)
+	{
+		if (bComboSequenceRunning && bCanComboInput)
+		{
+			ComboCounter++;
+			UE_LOG(LogTemp, Warning, TEXT("Additional input : Combo Counter %d"), ComboCounter);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT(">>> ComboSequence Started <<<"));
+			ResetCombo();
+			bComboSequenceRunning = true;
+			
+			TargetingComponent->UpdateTargetByDirection(GetLastMovementInputVector());
+		}
+		
+		DoAttack(AttackTypeTag);
+		GetWorld()->GetTimerManager().ClearTimer(ComboResetTimerHandle);
+	}
+	else if (bCanComboInput)
+	{
+		bSavedComboInput = true; 
+	}
+}
+
+void AGT1Character::ResetCombo()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Combo Reset"));
+	
+	bComboSequenceRunning = false;
+	bCanComboInput = false;
+	bSavedComboInput = false;
+	ComboCounter = 0;
+}
+
+void AGT1Character::EnableComboWindow()
+{
+	bCanComboInput = true;
+	UE_LOG(LogTemp, Warning, TEXT("Combo Window Opened : Combo Counter %d"), ComboCounter);
+}
+
+void AGT1Character::DisableComboWindow()
+{
+	check(CombatComponent);
+	
+	bCanComboInput = false;
+	
+	if (bSavedComboInput)
+	{
+		bSavedComboInput = false;
+		ComboCounter++;
+		UE_LOG(LogTemp, Warning, TEXT("Combo Window Closed : Advancing to next combo = %d"), ComboCounter);
+		DoAttack(CombatComponent->GetLastAttackType());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Combo Window Closed : No input received"));
+	}
+	
+}
+
+void AGT1Character::AttackFinished(const float ComboResetDelay)
+{
+	UE_LOG(LogTemp, Warning, TEXT("AttackFinished"));
+	if (StateComponent)
+	{
+		StateComponent->ToggleMovementInput(true);
+	}
+	GetWorld()->GetTimerManager().SetTimer(ComboResetTimerHandle, this, &ThisClass::ResetCombo, ComboResetDelay, false);
 }
 

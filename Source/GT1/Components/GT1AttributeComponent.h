@@ -6,6 +6,7 @@
 #include "GT1AttributeComponent.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FDelegateOnAttributeChanged, EGT1AttributeType, float);
+DECLARE_MULTICAST_DELEGATE(FOnDeath)
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class GT1_API UGT1AttributeComponent : public UActorComponent
@@ -16,6 +17,8 @@ public:
 	// 스텍 변경 Delegate
 	FDelegateOnAttributeChanged OnAttributeChanged;
 	
+	FOnDeath OnDeath;
+	
 protected:
 	UPROPERTY(EditAnywhere, Category="Stamina")
 	float BaseStamina = 100.f;
@@ -25,6 +28,12 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category="Stamina")
 	float StaminaRegenRate = 0.5f;
+	
+	UPROPERTY(EditAnywhere, Category="Health")
+	float BaseHealth = 100.f;
+	
+	UPROPERTY(EditAnywhere, Category="Health")
+	float MaxHealth = 100.f;
 	
 	// 스테미너 재충전 타이머 핸들러
 	FTimerHandle StaminaRegenTimerHandle;
@@ -41,6 +50,8 @@ public:
 public:
 	FORCEINLINE float GetBaseStamina() const { return BaseStamina; }
 	FORCEINLINE float GetMaxStamina() const { return MaxStamina; }
+	FORCEINLINE float GetBaseHealth() const { return BaseHealth; }
+	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	
 	FORCEINLINE float GetStaminaRatio() const { return BaseStamina / MaxStamina; }
 	
@@ -54,6 +65,8 @@ public:
 	void ToggleStaminaRegeneration(bool bEnabled, float StartDelay = 2.f);
 	
 	void BroadcastAttributeOnChanged(EGT1AttributeType AttributeType) const;
+	
+	void TakeDamageAmount(float DamageAmount);
 	
 private:
 	void RegenerateStaminaHandler();
